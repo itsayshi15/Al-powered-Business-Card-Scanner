@@ -89,8 +89,4 @@ Data is automatically organized in the `Cards` tab with these columns:
 | **Card Image Link** | Direct link to open the photo. |
 | **Scanned At** | Timestamp of when the card was scanned. |
 
----
 
-## License
-
-This project is open-source and free to use under the [MIT License](LICENSE).
