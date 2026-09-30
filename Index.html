@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Card Scanner</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #edf0f3;
+      --surface: #ffffff;
+      --ink: #14202b;
+      --muted: #566676;
+      --line: #d8dfe6;
+      --accent: #0b6e6e;
+      --accent-strong: #095858;
+      --accent-ink: #ffffff;
+      --accent-soft: #dcf0ee;
+      --ok: #17703f;      --ok-soft: #e0f3e8;
+      --warn: #8f5200;    --warn-soft: #fff0d1;
+      --err: #b42318;     --err-soft: #fde8e6;
+      --radius: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0e1620;
+        --surface: #16212c;
+        --ink: #e9eff5;
+        --muted: #9fb0bf;
+        --line: #2b3a48;
+        --accent: #4cc2b8;
+        --accent-strong: #7fd8cf;
+        --accent-ink: #06211f;
+        --accent-soft: #143536;
+        --ok: #5ad190;   --ok-soft: #12301f;
+        --warn: #f2b24c; --warn-soft: #3a2b0c;
+        --err: #ff9a90;  --err-soft: #3d1916;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+      font-family: "Manrope", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      font-size: 15px; line-height: 1.5;
+      padding: 16px 16px calc(40px + env(safe-area-inset-bottom));
+    }
+    .app { max-width: 520px; margin: 0 auto; }
+    [hidden] { display: none !important; }
+
+    /* ----- Header ----- */
+    .topbar { display: flex; align-items: center; gap: 12px; padding: 4px 2px 18px; }
+    .mark { flex: none; width: 38px; height: 26px; border-radius: 5px; background: var(--accent); position: relative; transform: rotate(-4deg); }
+    .mark::before, .mark::after { content: ""; position: absolute; left: 6px; height: 3px; border-radius: 2px; background: var(--accent-ink); opacity: .9; }
+    .mark::before { top: 7px; width: 14px; }
+    .mark::after { top: 14px; width: 24px; opacity: .55; }
+    .topbar .app-name { font-weight: 800; font-size: 18px; letter-spacing: -.2px; }
+    .topbar .app-sub { color: var(--muted); font-size: 12.5px; margin-top: -2px; }
+
+    h1 { font-size: 22px; line-height: 1.25; letter-spacing: -.3px; margin: 0 0 6px; font-weight: 800; }
+    h1:focus { outline: none; }
+    .lede { color: var(--muted); margin: 0 0 18px; max-width: 46ch; }
+
+    /* ----- Surfaces ----- */
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+    .panel + .panel { margin-top: 12px; }
+
+    /* ----- Form ----- */
+    .field + .field { margin-top: 18px; }
+    label { display: block; font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+    .input-wrap { position: relative; }
+    input[type="text"], input[type="password"] {
+      width: 100%; min-height: 46px; padding: 10px 14px; font: inherit; color: var(--ink);
+      background: var(--bg); border: 1.5px solid var(--line); border-radius: 10px;
+    }
+    input::placeholder { color: var(--muted); opacity: .8; }
+    input:focus-visible { outline: 3px solid var(--accent-soft); border-color: var(--accent); }
+    .input-wrap input { padding-right: 70px; }
+    .reveal {
+      position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+      min-height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent;
+      color: var(--accent-strong); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+    .help { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+    .help a { color: var(--accent-strong); font-weight: 600; }
+
+    /* ----- Buttons ----- */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      min-height: 48px; padding: 0 18px; border-radius: 10px; border: 1.5px solid transparent;
+      font: inherit; font-weight: 700; cursor: pointer; width: 100%;
+      transition: background-color .12s, border-color .12s, opacity .12s;
+    }
+    .btn-primary { background: var(--accent); color: var(--accent-ink); }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-strong); }
+    .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--line); }
+    .btn-secondary:hover:not(:disabled) { border-color: var(--accent); }
+    .btn-quiet { background: transparent; color: var(--muted); min-height: 44px; }
+    .btn-quiet:hover:not(:disabled) { color: var(--ink); }
+    .btn-danger { background: var(--surface); color: var(--err); border-color: var(--line); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn:focus-visible, .reveal:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .actions { display: grid; gap: 10px; margin-top: 16px; }
+    .actions.two { grid-template-columns: 1fr 1fr; }
+
+    .spinner { width: 16px; height: 16px; border: 2.5px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ----- Banners ----- */
+    .banner { border-radius: 10px; padding: 12px 14px; font-size: 14px; margin-top: 14px; }
+    .banner.error { background: var(--err-soft); color: var(--err); }
+    .banner.info { background: var(--accent-soft); color: var(--accent-strong); }
+
+    /* ----- Ready screen ----- */
+    .folder { display: flex; align-items: center; gap: 12px; }
+    .folder svg { flex: none; color: var(--accent); }
+    .folder .f-name { font-weight: 700; word-break: break-word; }
+    .folder .f-meta { color: var(--muted); font-size: 12.5px; }
+    .folder .f-link { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--accent-strong); white-space: nowrap; }
+
+    .queue { display: flex; align-items: baseline; gap: 12px; margin: 4px 0 2px; }
+    .queue-num { font-size: 54px; font-weight: 800; line-height: 1; letter-spacing: -2px; }
+    .queue-label { font-weight: 600; color: var(--muted); }
+    .queue-note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+
+    .tips { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13.5px; }
+    .tips li + li { margin-top: 4px; }
+    .tips-title { font-weight: 700; font-size: 14px; margin: 0 0 8px; }
+
+    /* ----- Scan screen ----- */
+    .scan-head { position: sticky; top: 0; z-index: 2; background: var(--bg); padding: 4px 0 12px; }
+    .scan-line { display: flex; justify-content: space-between; gap: 12px; font-weight: 700; }
+    .scan-file { color: var(--muted); font-weight: 500; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; min-height: 20px; }
+    .track { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 10px; }
+    .fill { height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+    .counts { display: flex; gap: 14px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+    .counts b { color: var(--ink); font-weight: 800; }
+
+    /* ----- Result rows ----- */
+    .results { list-style: none; margin: 0; padding: 0; }
+    .result { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .result:last-child { border-bottom: 0; }
+    .avatar {
+      flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+      font-weight: 800; font-size: 14px; background: var(--accent-soft); color: var(--accent-strong);
+    }
+    .result.review .avatar { background: var(--warn-soft); color: var(--warn); }
+    .result.duplicate .avatar { background: var(--warn-soft); color: var(--warn); }
+    .result.failed .avatar { background: var(--err-soft); color: var(--err); }
+    .r-body { min-width: 0; flex: 1; }
+    .r-top { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+    .r-name { font-weight: 700; overflow-wrap: anywhere; }
+    .r-role { color: var(--muted); font-size: 13.5px; overflow-wrap: anywhere; }
+    .r-contact { font-size: 13px; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+    .r-file { font-size: 12px; color: var(--muted); margin-top: 4px; opacity: .85; overflow-wrap: anywhere; }
+    .r-issues { margin: 6px 0 0; padding: 0; list-style: none; font-size: 13px; }
+    .r-issues li { color: var(--warn); }
+    .result.failed .r-issues li { color: var(--err); }
+    .chip { flex: none; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+    .chip.ok { background: var(--ok-soft); color: var(--ok); }
+    .chip.review, .chip.duplicate { background: var(--warn-soft); color: var(--warn); }
+    .chip.failed { background: var(--err-soft); color: var(--err); }
+
+    .wait-note { margin-top: 12px; }
+
+    /* ----- Summary ----- */
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 0 4px; }
+    .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+    .stat b { display: block; font-size: 28px; line-height: 1.1; font-weight: 800; letter-spacing: -1px; }
+    .stat span { font-size: 12.5px; color: var(--muted); }
+    .stat.ok b { color: var(--ok); } .stat.review b { color: var(--warn); } .stat.failed b { color: var(--err); }
+    .section-title { font-weight: 700; margin: 0 0 2px; }
+    .section-sub { color: var(--muted); font-size: 13px; margin: 0 0 4px; }
+
+    @media (max-width: 380px) { .actions.two { grid-template-columns: 1fr; } .queue-num { font-size: 46px; } }
+    @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } .fill { transition: none; } }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="mark" aria-hidden="true"></div>
+    <div>
+      <div class="app-name">Card Scanner</div>
+      <div class="app-sub">Drive folder to Google Sheet</div>
+    </div>
+  </header>
+
+  <!-- ===== LOADING ===== -->
+  <main id="screen-loading" class="panel" aria-live="polite">
+    <div style="display:flex;align-items:center;gap:12px;color:var(--muted)"><span class="spinner"></span> Loading your setup…</div>
+  </main>
+
+  <!-- ===== SETUP ===== -->
+  <main id="screen-setup" hidden>
+    <h1 tabindex="-1" id="setupTitle">Connect your card folder</h1>
+    <p class="lede">Pick the Drive folder that holds your card photos. Gemini reads each one and adds it to a Google Sheet.</p>
+
+    <form class="panel" id="setupForm" novalidate>
+      <div class="field">
+        <label for="folderInput">Drive folder link</label>
+        <input type="text" id="folderInput" inputmode="url" autocomplete="off" placeholder="https://drive.google.com/drive/folders/…">
+        <p class="help">In Drive, open the folder, then Share → Copy link.</p>
+      </div>
+      <div class="field">
+        <label for="apiKeyInput">Gemini API key</label>
+        <div class="input-wrap">
+          <input type="password" id="apiKeyInput" autocomplete="off" spellcheck="false" placeholder="AIza…">
+          <button type="button" class="reveal" id="revealBtn" aria-label="Show API key">Show</button>
+        </div>
+        <p class="help" id="keyHelp">Free from <a href="https://aistudio.google.com/" target="_blank" rel="noopener">Google AI Studio</a>. Stored only in your Google account.</p>
+      </div>
+      <div id="setupError" class="banner error" role="alert" hidden></div>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary" id="saveBtn">Save and connect</button>
+        <button type="button" class="btn btn-quiet" id="cancelSetupBtn" hidden>Cancel</button>
+      </div>
+    </form>
+  </main>
+
+  <!-- ===== READY ===== -->
+  <main id="screen-ready" hidden>
+    <h1 tabindex="-1" id="readyTitle">Ready to scan</h1>
+    <p class="lede">Each card is read, added to your sheet, then moved into a Processed folder so it is never scanned twice.</p>
+
+    <section class="panel" aria-label="Connected folder">
+      <div class="folder">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+        <div>
+          <div class="f-name" id="folderName"></div>
+          <div class="f-meta">Connected folder</div>
+        </div>
+        <a class="f-link" id="folderLink" href="#" target="_blank" rel="noopener">Open</a>
+      </div>
+    </section>
+
+    <section class="panel" aria-live="polite">
+      <div class="queue">
+        <span class="queue-num" id="queueNum">–</span>
+        <span class="queue-label" id="queueLabel">Checking folder…</span>
+      </div>
+      <p class="queue-note" id="queueNote" hidden></p>
+      <div class="actions">
+        <button class="btn btn-primary" id="scanBtn" disabled>Scan cards</button>
+        <div class="actions two" style="margin-top:0">
+          <button class="btn btn-secondary" id="refreshBtn">Refresh count</button>
+          <button class="btn btn-secondary" id="openSheetBtn">Open sheet</button>
+        </div>
+      </div>
+      <div id="readyError" class="banner error" role="alert" hidden></div>
+    </section>
+
+    <section class="panel">
+      <p class="tips-title">For the most accurate reads</p>
+      <ul class="tips">
+        <li>Shoot each card flat, in good light, filling most of the frame.</li>
+        <li>One card per photo. Put the back of a card in its own photo if it has details.</li>
+        <li>Anything marked Check in the sheet is worth a quick look against the photo.</li>
+      </ul>
+    </section>
+
+    <div class="actions"><button class="btn btn-quiet" id="changeSetupBtn">Change folder or API key</button></div>
+  </main>
+
+  <!-- ===== SCAN ===== -->
+  <main id="screen-scan" hidden>
+    <div class="scan-head">
+      <div class="scan-line"><span id="scanTitle" tabindex="-1">Scanning</span><span id="scanCount"></span></div>
+      <div class="scan-file" id="scanFile"></div>
+      <div class="track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="track"><div class="fill" id="fill"></div></div>
+      <div class="counts" aria-live="polite">
+        <span><b id="cAdded">0</b> added</span>
+        <span><b id="cReview">0</b> to check</span>
+        <span><b id="cFailed">0</b> failed</span>
+      </div>
+    </div>
+
+    <div id="waitNote" class="banner info wait-note" role="status" hidden></div>
+    <div id="scanFatal" class="banner error" role="alert" hidden></div>
+
+    <section class="panel" id="liveWrap" hidden><ul class="results" id="liveList"></ul></section>
+
+    <div class="actions">
+      <button class="btn btn-danger" id="stopBtn">Stop after this batch</button>
+    </div>
+    <div class="actions two" id="scanErrorActions" hidden>
+      <button class="btn btn-primary" id="scanRetryBtn">Try again</button>
+      <button class="btn btn-secondary" id="scanBackBtn">Back</button>
+    </div>
+  </main>
+
+  <!-- ===== SUMMARY ===== -->
+  <main id="screen-summary" hidden>
+    <h1 tabindex="-1" id="sumTitle">Scan complete</h1>
+    <p class="lede" id="sumLede"></p>
+    <p class="section-sub" id="sumTiming" hidden></p>
+
+    <div class="stats">
+      <div class="stat ok"><b id="sAdded">0</b><span>Added</span></div>
+      <div class="stat review"><b id="sReview">0</b><span>To check</span></div>
+      <div class="stat failed"><b id="sFailed">0</b><span>Failed</span></div>
+    </div>
+
+    <section class="panel" id="attentionWrap" hidden>
+      <p class="section-title">Needs your attention</p>
+      <p class="section-sub">Checked cards are in the sheet with a note. Failed cards stay in the folder so you can retry.</p>
+      <ul class="results" id="attentionList"></ul>
+    </section>
+
+    <div id="sumError" class="banner error" role="alert" hidden></div>
+    <div class="actions">
+      <button class="btn btn-primary" id="sumSheetBtn">Open results sheet</button>
+      <button class="btn btn-secondary" id="retryFailedBtn" hidden>Retry failed cards</button>
+      <button class="btn btn-quiet" id="sumBackBtn">Back to folder</button>
+    </div>
+  </main>
+
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const screens = ['loading', 'setup', 'ready', 'scan', 'summary'];
+  const state = { folderId: '', folderName: '', folderUrl: '', hasApiKey: false };
+  let stopRequested = false;
+  let scanning = false;
+
+  function runGS(fn, ...args) {
+    return new Promise((resolve, reject) => {
+      google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](...args);
+    });
+  }
+  function errMsg(e, fallback) { return (e && e.message) ? e.message : (fallback || 'Something went wrong. Try again.'); }
+  function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+  function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function plural(n, one, many) { return n === 1 ? one : many; }
+
+  function show(name, focusId) {
+    screens.forEach((s) => { $('screen-' + s).hidden = s !== name; });
+    window.scrollTo(0, 0);
+    const f = focusId && $(focusId);
+    if (f) f.focus({ preventScroll: true });
+  }
+  function setBusy(btn, busy, busyText) {
+    if (busy) { btn.dataset.label = btn.textContent; btn.innerHTML = '<span class="spinner"></span> ' + esc(busyText); btn.disabled = true; }
+    else { btn.textContent = btn.dataset.label || btn.textContent; btn.disabled = false; }
+  }
+  function showError(id, msg) { const el = $(id); el.textContent = msg; el.hidden = false; }
+  function hideError(id) { $(id).hidden = true; }
+
+  // ---------- Startup ----------
+  (async function init() {
+    try {
+      const s = await runGS('getSavedSettings');
+      if (s.folderId && s.hasApiKey) { applyReady(s); return; }
+      state.hasApiKey = !!s.hasApiKey;
+      openSetup(s.folderError ? 'The saved folder can no longer be opened. Reconnect it or choose another.' : '');
+    } catch (e) {
+      openSetup(errMsg(e, 'Could not load your settings.'));
+    }
+  })();
+
+  function applyReady(s) {
+    Object.assign(state, { folderId: s.folderId, folderName: s.folderName, folderUrl: s.folderUrl || '', hasApiKey: true });
+    $('folderName').textContent = s.folderName;
+    if (s.folderUrl) $('folderLink').href = s.folderUrl;
+    renderQueue(s.pendingCount, s.skipped);
+    hideError('readyError');
+    show('ready', 'readyTitle');
+  }
+
+  function renderQueue(count, skipped) {
+    const num = $('queueNum'), label = $('queueLabel'), note = $('queueNote'), btn = $('scanBtn');
+    note.hidden = true;
+    if (typeof count !== 'number') {
+      num.textContent = '–'; label.textContent = 'Could not read the folder'; btn.disabled = true; btn.textContent = 'Scan cards';
+    } else if (count === 0) {
+      num.textContent = '0'; label.textContent = 'No new cards';
+      note.textContent = 'Add card photos to the folder, then refresh the count.'; note.hidden = false;
+      btn.disabled = true; btn.textContent = 'Scan cards';
+    } else {
+      num.textContent = count; label.textContent = plural(count, 'card ready to scan', 'cards ready to scan');
+      btn.disabled = false; btn.textContent = 'Scan ' + count + ' ' + plural(count, 'card', 'cards');
+    }
+    if (skipped > 0) {
+      const extra = skipped + ' ' + plural(skipped, 'file was', 'files were') + ' skipped. Only JPG, PNG, WebP and HEIC photos are read.';
+      note.textContent = (note.hidden ? '' : note.textContent + ' ') + extra; note.hidden = false;
+    }
+  }
+
+  // ---------- Setup ----------
+  function openSetup(message) {
+    const configured = !!(state.folderId && state.hasApiKey);
+    $('folderInput').value = state.folderUrl || '';
+    $('apiKeyInput').value = '';
+    $('apiKeyInput').type = 'password'; $('revealBtn').textContent = 'Show';
+    $('apiKeyInput').placeholder = state.hasApiKey ? 'Saved. Leave blank to keep it' : 'AIza…';
+    $('cancelSetupBtn').hidden = !configured;
+    hideError('setupError');
+    if (message) showError('setupError', message);
+    show('setup', 'setupTitle');
+  }
+
+  $('revealBtn').addEventListener('click', () => {
+    const input = $('apiKeyInput'), hidden = input.type === 'password';
+    input.type = hidden ? 'text' : 'password';
+    $('revealBtn').textContent = hidden ? 'Hide' : 'Show';
+    $('revealBtn').setAttribute('aria-label', hidden ? 'Hide API key' : 'Show API key');
+  });
+  $('changeSetupBtn').addEventListener('click', () => openSetup(''));
+  $('cancelSetupBtn').addEventListener('click', () => show('ready', 'readyTitle'));
+
+  $('setupForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    hideError('setupError');
+    const folder = $('folderInput').value.trim();
+    const key = $('apiKeyInput').value.trim();
+    if (!folder) { showError('setupError', 'Paste the Drive folder link first.'); $('folderInput').focus(); return; }
+    if (!key && !state.hasApiKey) { showError('setupError', 'Enter your Gemini API key.'); $('apiKeyInput').focus(); return; }
+    const btn = $('saveBtn');
+    setBusy(btn, true, 'Checking folder and key…');
+    try {
+      applyReady(await runGS('saveSettings', folder, key));
+    } catch (e) {
+      showError('setupError', errMsg(e, 'Could not save your settings.'));
+    } finally {
+      setBusy(btn, false);
+    }
+  });
+
+  // ---------- Ready actions ----------
+  $('refreshBtn').addEventListener('click', async () => {
+    const btn = $('refreshBtn'); hideError('readyError');
+    setBusy(btn, true, 'Checking…');
+    try { const r = await runGS('refreshPendingCount'); renderQueue(r.pendingCount, r.skipped); }
+    catch (e) { showError('readyError', errMsg(e)); }
+    finally { setBusy(btn, false); }
+  });
+
+  async function openSheet(btn, errorId) {
+    hideError(errorId);
+    const popup = window.open('about:blank', '_blank'); // opened on the click so mobile browsers allow it
+    setBusy(btn, true, 'Opening…');
+    try {
+      const url = await runGS('getSheetUrl');
+      if (popup) popup.location.href = url; else window.open(url, '_blank');
+    } catch (e) {
+      if (popup) popup.close();
+      showError(errorId, errMsg(e, 'Could not open the sheet.'));
+    } finally { setBusy(btn, false); }
+  }
+  $('openSheetBtn').addEventListener('click', () => openSheet($('openSheetBtn'), 'readyError'));
+  $('sumSheetBtn').addEventListener('click', () => openSheet($('sumSheetBtn'), 'sumError'));
+
+  async function backToFolder() {
+    show('ready', 'readyTitle');
+    try { const r = await runGS('refreshPendingCount'); renderQueue(r.pendingCount, r.skipped); } catch (e) { /* keep old count */ }
+  }
+  $('sumBackBtn').addEventListener('click', backToFolder);
+  $('scanBackBtn').addEventListener('click', backToFolder);
+
+  // ---------- Scanning ----------
+  $('scanBtn').addEventListener('click', startScan);
+  $('scanRetryBtn').addEventListener('click', startScan);
+  $('retryFailedBtn').addEventListener('click', startScan); // failed files are still in the folder
+  $('stopBtn').addEventListener('click', () => {
+    stopRequested = true;
+    $('stopBtn').disabled = true; $('stopBtn').textContent = 'Stopping after this batch…';
+  });
+  window.addEventListener('beforeunload', (e) => { if (scanning) { e.preventDefault(); e.returnValue = ''; } });
+
+  function setProgress(done, total) {
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    $('fill').style.width = pct + '%';
+    $('track').setAttribute('aria-valuenow', pct);
+  }
+
+  /** Processes one file. On a rate limit, waits and retries (up to 2 times) instead of failing the card. */
+  const MAX_CHUNK = 6;      // cards per batch (shrinks automatically if Gemini pushes back)
+  const START_CHUNK = 4;
+  const LANES = 2;          // batches running at the same time
+  const MAX_ATTEMPTS = 3;   // extra tries for a card that hits a rate limit / overload
+
+  /**
+   * Runs the whole queue with several batches in flight. Kept free of DOM code so it is easy to test.
+   * o = { files, runBatch(files) -> results[], onFinal(result), onWait(secs, reason), onTiming(t),
+   *       isStopped(), sleep(ms), lanes, startChunk, maxChunk, maxAttempts }
+   */
+  async function runScheduler(o) {
+    const queue = o.files.map((f) => ({ file: f, attempts: 0 }));
+    let inflight = 0, chunkSize = o.startChunk, pauseUntil = 0, stopped = false;
+
+    async function lane(n) {
+      while (true) {
+        if (o.isStopped()) { stopped = true; return; }
+        if (!queue.length) { if (inflight === 0) return; await o.sleep(150); continue; }
+        if (Date.now() < pauseUntil) { await o.sleep(300); continue; }   // another lane hit a limit: wait too
+        if (n > 0 && chunkSize < 2) { await o.sleep(300); continue; }    // backed off: run a single lane only
+
+        const chunk = queue.splice(0, chunkSize);
+        inflight++;
+        let results;
+        try { results = await o.runBatch(chunk.map((c) => c.file)); }
+        catch (e) { results = []; }
+
+        const retry = []; let waitSecs = 0, reason = '';
+        chunk.forEach((item, k) => {
+          const out = (results && results[k]) || { success: false, name: item.file.name, error: 'No response from the server.' };
+          if (out.deferred) { retry.push(item); return; }               // batch too big; not attempted, no penalty
+          if (!out.success && out.rateLimited && item.attempts < o.maxAttempts && !o.isStopped()) {
+            item.attempts++; retry.push(item); waitSecs = out.retryAfter || 20; reason = out.error; return;
+          }
+          o.onFinal(out);
+        });
+        if (results && results[0] && results[0].timing && o.onTiming) o.onTiming(results[0].timing);
+        queue.unshift(...retry);
+        inflight--;
+
+        if (waitSecs) {                                  // Gemini pushed back: slow down and wait
+          chunkSize = Math.max(1, Math.floor(chunkSize / 2));
+          pauseUntil = Date.now() + waitSecs * 1000;
+          await o.onWait(waitSecs, reason);
+        } else if (chunkSize < o.maxChunk) {             // calm again: speed back up gradually
+          chunkSize++;
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: o.lanes }, (_, n) => lane(n)));
+    return { stoppedEarly: stopped };
+  }
+
+  let counting = false;
+  async function countdown(seconds, reason) {
+    if (counting) return;
+    counting = true;
+    for (let t = seconds; t > 0 && !stopRequested; t--) {
+      $('waitNote').textContent = (reason || 'Gemini is busy.') + ' Continuing in ' + t + 's. Finished cards are already saved.';
+      $('waitNote').hidden = false;
+      await sleep(1000);
+    }
+    $('waitNote').hidden = true;
+    counting = false;
+  }
+
+  let lastRun = { ms: 0, timing: { load: 0, ai: 0, write: 0 } };
+
+  async function startScan() {
+    stopRequested = false; scanning = true;
+    const counts = { added: 0, review: 0, failed: 0 };
+    const bump = () => { $('cAdded').textContent = counts.added; $('cReview').textContent = counts.review; $('cFailed').textContent = counts.failed; };
+    bump();
+    $('liveList').innerHTML = ''; $('liveWrap').hidden = true;
+    hideError('scanFatal'); $('scanErrorActions').hidden = true; $('waitNote').hidden = true;
+    $('stopBtn').hidden = false; $('stopBtn').disabled = false; $('stopBtn').textContent = 'Stop after this batch';
+    $('scanTitle').textContent = 'Finding cards…'; $('scanCount').textContent = ''; $('scanFile').textContent = '';
+    setProgress(0, 1);
+    show('scan', 'scanTitle');
+
+    let listing;
+    try { listing = await runGS('getPendingFiles'); }
+    catch (e) {
+      scanning = false; $('stopBtn').hidden = true;
+      showError('scanFatal', errMsg(e, 'Could not read the folder.')); $('scanErrorActions').hidden = false; return;
+    }
+
+    const files = listing.pending;
+    if (!files.length) { scanning = false; finishScan([], false); return; }
+
+    const outcomes = [];
+    const startedAt = Date.now();
+    const timing = { load: 0, ai: 0, write: 0 };
+
+    const finalize = (out) => {
+      outcomes.push(out);
+      if (!out.success) counts.failed++; else { counts.added++; if (out.status !== 'ok') counts.review++; }
+      bump();
+      $('liveWrap').hidden = false;
+      $('liveList').insertBefore(renderResult(out), $('liveList').firstChild); // newest on top
+      setProgress(outcomes.length, files.length);
+      $('scanTitle').textContent = outcomes.length + ' of ' + files.length + ' cards done';
+    };
+
+    $('scanTitle').textContent = '0 of ' + files.length + ' cards done';
+    const run = await runScheduler({
+      files: files, lanes: LANES, startChunk: START_CHUNK, maxChunk: MAX_CHUNK, maxAttempts: MAX_ATTEMPTS,
+      isStopped: () => stopRequested, sleep: sleep,
+      runBatch: async (batch) => {
+        $('scanFile').textContent = 'Reading ' + batch.map((f) => f.name).join(', ');
+        try { return await runGS('processBatch', batch.map((f) => f.id)); }
+        catch (e) { return batch.map((f) => ({ success: false, name: f.name, error: errMsg(e) })); }
+      },
+      onFinal: finalize,
+      onWait: countdown,
+      onTiming: (t) => { timing.load += t.load; timing.ai += t.ai; timing.write += t.write; }
+    });
+    const stoppedEarly = run.stoppedEarly;
+    lastRun = { ms: Date.now() - startedAt, timing: timing };
+    scanning = false; $('stopBtn').hidden = true; $('waitNote').hidden = true;
+    finishScan(outcomes, stoppedEarly);
+  }
+
+  function initials(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '?';
+    return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+  }
+
+  function renderResult(o) {
+    const li = document.createElement('li');
+    let kind, chip, chipText, title, role, contact, issues = [];
+    if (!o.success) {
+      kind = 'failed'; chipText = 'Failed'; title = o.name; role = ''; contact = ''; issues = [o.error || 'Could not process this image.'];
+    } else {
+      const c = o.card || {};
+      kind = o.status === 'duplicate' ? 'duplicate' : (o.status === 'review' ? 'review' : 'ok');
+      chipText = kind === 'ok' ? 'Added' : (kind === 'duplicate' ? 'Duplicate?' : 'Check');
+      title = c.name || 'Name not found';
+      role = [c.designation, c.company].filter(Boolean).join(', ');
+      contact = [c.phone, c.email].filter(Boolean).join('  |  ');
+      issues = o.issues || [];
+    }
+    li.className = 'result ' + kind;
+    li.innerHTML =
+      '<div class="avatar" aria-hidden="true">' + esc(o.success ? initials((o.card || {}).name) : '!') + '</div>' +
+      '<div class="r-body">' +
+        '<div class="r-top"><span class="r-name">' + esc(title) + '</span><span class="chip ' + kind + '">' + chipText + '</span></div>' +
+        (role ? '<div class="r-role">' + esc(role) + '</div>' : '') +
+        (contact ? '<div class="r-contact">' + esc(contact) + '</div>' : '') +
+        (issues.length ? '<ul class="r-issues">' + issues.map((t) => '<li>' + esc(t) + '</li>').join('') + '</ul>' : '') +
+        (o.success ? '<div class="r-file">' + esc(o.name) + (o.row ? ' · sheet row ' + o.row : '') + '</div>' : '') +
+      '</div>';
+    return li;
+  }
+
+  function finishScan(outcomes, stoppedEarly) {
+    const added = outcomes.filter((o) => o.success).length;
+    const review = outcomes.filter((o) => o.success && o.status !== 'ok').length;
+    const failed = outcomes.filter((o) => !o.success).length;
+
+    $('sAdded').textContent = added; $('sReview').textContent = review; $('sFailed').textContent = failed;
+
+    let title, lede;
+    if (!outcomes.length) { title = 'Nothing new to scan'; lede = 'The folder has no unprocessed card photos.'; }
+    else if (stoppedEarly) { title = 'Scan stopped'; lede = added + ' ' + plural(added, 'card is', 'cards are') + ' in your sheet. The rest are still in the folder.'; }
+    else if (failed) { title = 'Finished with some failures'; lede = added + ' added. Failed cards stay in the folder so you can retry them.'; }
+    else if (review) { title = 'Scan complete'; lede = 'All ' + added + ' added. ' + review + ' ' + plural(review, 'needs', 'need') + ' a quick look.'; }
+    else { title = 'Scan complete'; lede = 'All ' + added + ' ' + plural(added, 'card was', 'cards were') + ' added to your sheet.'; }
+    $('sumTitle').textContent = title; $('sumLede').textContent = lede;
+    const tm = $('sumTiming');
+    if (outcomes.length && lastRun.ms) {
+      const secs = (ms) => (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + 's';
+      const t = lastRun.timing;
+      tm.textContent = 'Took ' + secs(lastRun.ms) + ' (' + secs(lastRun.ms / outcomes.length) + ' per card). ' +
+        'Loading photos ' + secs(t.load) + ', Gemini ' + secs(t.ai) + ', sheet and Drive ' + secs(t.write) + ', summed across batches.';
+      tm.hidden = false;
+    } else { tm.hidden = true; }
+
+    const attention = outcomes.filter((o) => !o.success || o.status !== 'ok');
+    const list = $('attentionList'); list.innerHTML = '';
+    attention.forEach((o) => list.appendChild(renderResult(o)));
+    $('attentionWrap').hidden = attention.length === 0;
+
+    $('retryFailedBtn').hidden = failed === 0;
+    $('retryFailedBtn').textContent = 'Retry ' + failed + ' failed ' + plural(failed, 'card', 'cards');
+    $('sumSheetBtn').disabled = false;
+    hideError('sumError');
+    show('summary', 'sumTitle');
+  }
+</script>
+</body>
+</html>
